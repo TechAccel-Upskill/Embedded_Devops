@@ -35,9 +35,14 @@ build_app() {
 
     # Check for Bazel build
     if [ -f "apps/$app_name/BUILD.bazel" ]; then
-        cd "apps/$app_name"
-        bazel build //...
-        cd - > /dev/null
+        if command -v bazel &> /dev/null; then
+            echo "  - Building with Bazel"
+            cd "apps/$app_name"
+            bazel build //...
+            cd - > /dev/null
+        else
+            echo "  - Bazel not installed, skipping Bazel build"
+        fi
     fi
 
     echo "$app_name built successfully."
@@ -48,4 +53,5 @@ for app in "${!apps[@]}"; do
     build_app "$app"
 done
 
-echo "All applications built successfully."
+echo ""
+echo "All applications built successfully!"

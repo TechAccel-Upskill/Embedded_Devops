@@ -1,28 +1,27 @@
-# Makefile for Zephyr Application
+CC = gcc
+CFLAGS = -I./include -Wall -Wextra -std=c11
+LDFLAGS = -pthread
 
-# Zephyr Application Makefile
+SRC = main.c
+OBJ = $(SRC:.c=.o)
+TARGET = zephyr_app
 
-# Define the name of the application
-APP_NAME := zephyr_app
-
-# Define the source files
-SRC_FILES := main.c
-
-# Define the build directory
-BUILD_DIR := build
-
-# Define the Zephyr base directory
-ZEPHYR_BASE := /path/to/zephyr
-
-# Include Zephyr's Makefile
-include $(ZEPHYR_BASE)/Makefile.inc
-
-# Targets
 .PHONY: all clean
 
-all: $(BUILD_DIR)/$(APP_NAME)
+all: $(TARGET)
 
-$(BUILD_DIR)/$(APP_NAME): $(SRC_FILES)
+$(TARGET): $(OBJ)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJ) $(TARGET)
+
+install: $(TARGET)
+	mkdir -p /usr/local/bin
+	cp $(TARGET) /usr/local/bin/
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 

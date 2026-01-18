@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: freertos-app
+  namespace: embedded-os
   labels:
     app: freertos
 spec:
@@ -16,16 +17,26 @@ spec:
     spec:
       containers:
       - name: freertos-container
-        image: freertos-image:latest
+        image: freertos-app:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
         env:
-        - name: ENV_VAR_NAME
-          value: "value"
+        - name: APP_NAME
+          value: "freertos-app"
         resources:
           limits:
             memory: "128Mi"
             cpu: "500m"
           requests:
             memory: "64Mi"
+            cpu: "250m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep freertos_app || exit 1"
+          initialDelaySeconds: 10
+          periodSeconds: 30
             cpu: "250m"

@@ -1,17 +1,11 @@
-load("//apps/zephyr_app:main")
-
-cc_library(
-    name = "zephyr_app_lib",
-    srcs = ["main.c"],
-    hdrs = [],
-    deps = [
-        "//path/to/zephyr:zephyr",  # Adjust the path to the Zephyr library as needed
-        "//path/to/other/dependencies",  # Add any other dependencies required
-    ],
-)
-
 cc_binary(
     name = "zephyr_app",
     srcs = ["main.c"],
-    deps = [":zephyr_app_lib"],
+    copts = [
+        "-Wall",
+        "-Wextra",
+        "-O2",
+    ],
+    linkopts = ["-pthread"],
+    visibility = ["//visibility:public"],
 )

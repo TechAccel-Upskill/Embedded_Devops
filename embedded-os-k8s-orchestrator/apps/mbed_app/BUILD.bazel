@@ -1,15 +1,11 @@
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-http_archive(
-    name = "mbed",
-    urls = ["https://github.com/ARMmbed/mbed-os/archive/refs/tags/mbed-os-6.15.0.zip"],
-    strip_prefix = "mbed-os-mbed-os-6.15.0",
-)
-
 cc_binary(
     name = "mbed_app",
     srcs = ["main.cpp"],
-    deps = [
-        "@mbed//:mbed",
+    copts = [
+        "-Wall",
+        "-Wextra",
+        "-O2",
     ],
+    linkopts = ["-pthread"],
+    visibility = ["//visibility:public"],
 )

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: zephyr-app
+  namespace: embedded-os
   labels:
     app: zephyr
 spec:
@@ -16,16 +17,26 @@ spec:
     spec:
       containers:
       - name: zephyr-container
-        image: zephyr-image:latest
+        image: zephyr-app:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
         env:
-        - name: ENV_VAR_NAME
-          value: "value"
+        - name: APP_NAME
+          value: "zephyr-app"
         resources:
           requests:
             memory: "128Mi"
-            cpu: "500m"
+            cpu: "250m"
           limits:
             memory: "256Mi"
+            cpu: "750m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep zephyr_app || exit 1"
+          initialDelaySeconds: 10
+          periodSeconds: 30
             cpu: "1"

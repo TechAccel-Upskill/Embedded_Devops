@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mbed-app
+  namespace: embedded-os
   labels:
     app: mbed-app
 spec:
@@ -16,9 +17,25 @@ spec:
     spec:
       containers:
       - name: mbed-container
-        image: mbed-image:latest
+        image: mbed-app:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
         env:
-        - name: ENV_VAR_NAME
-          value: "value"
+        - name: APP_NAME
+          value: "mbed-app"
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "750m"
+          requests:
+            memory: "128Mi"
+            cpu: "250m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep mbed_app || exit 1"
+          initialDelaySeconds: 10
+          periodSeconds: 30

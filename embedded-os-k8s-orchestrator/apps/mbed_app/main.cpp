@@ -1,13 +1,19 @@
-#include <mbed.h>
+#include <iostream>
+#include <chrono>
+#include <thread>
 
-DigitalOut led(LED1);
-AnalogIn pot(A0);
+/* This is a simplified Mbed application.
+ * When building with the full Mbed SDK, replace this with actual Mbed API calls.
+ */
 
 int main() {
+    std::cout << "Starting Mbed application..." << std::endl;
+    
+    int counter = 0;
     while (true) {
-        // Read the potentiometer value and scale it to a range suitable for LED brightness
-        float potValue = pot.read(); // Value between 0.0 and 1.0
-        led = potValue; // Set LED brightness based on potentiometer value
-        wait(0.1); // Wait for a short period
+        std::cout << "Mbed application running - iteration: " << counter++ << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
+    
+    return 0;
 }

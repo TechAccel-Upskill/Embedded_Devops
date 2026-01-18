@@ -1,14 +1,11 @@
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
-# FreeRTOS application build configuration
-
 cc_binary(
     name = "freertos_app",
     srcs = ["main.c"],
-    deps = [
-        "//path/to/freertos:freertos_lib",  # Adjust the path to your FreeRTOS library
-        "//path/to/other/dependency",        # Add other dependencies as needed
+    copts = [
+        "-Wall",
+        "-Wextra",
+        "-O2",
     ],
+    linkopts = ["-pthread"],
+    visibility = ["//visibility:public"],
 )
-
-# Additional build configurations can be added here as needed.
