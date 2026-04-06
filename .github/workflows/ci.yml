@@ -31,12 +31,15 @@ jobs:
 
       - name: Build Docker images
         run: |
-          test -d apps/freertos_app && test -d apps/gcc_app && test -d apps/zephyr_app
-          test -f docker/Dockerfile.freertos && test -f docker/Dockerfile.gcc && test -f docker/Dockerfile.zephyr
+          REPO_ROOT="$(git rev-parse --show-toplevel)"
+          echo "Using repository root: $REPO_ROOT"
 
-          docker buildx build --load -f docker/Dockerfile.freertos -t freertos-app:latest apps/freertos_app
-          docker buildx build --load -f docker/Dockerfile.gcc -t gcc-app:latest apps/gcc_app
-          docker buildx build --load -f docker/Dockerfile.zephyr -t zephyr-app:latest apps/zephyr_app
+          test -d "$REPO_ROOT/apps/freertos_app" && test -d "$REPO_ROOT/apps/gcc_app" && test -d "$REPO_ROOT/apps/zephyr_app"
+          test -f "$REPO_ROOT/docker/Dockerfile.freertos" && test -f "$REPO_ROOT/docker/Dockerfile.gcc" && test -f "$REPO_ROOT/docker/Dockerfile.zephyr"
+
+          (cd "$REPO_ROOT/apps/freertos_app" && docker buildx build --load -f "$REPO_ROOT/docker/Dockerfile.freertos" -t freertos-app:latest .)
+          (cd "$REPO_ROOT/apps/gcc_app" && docker buildx build --load -f "$REPO_ROOT/docker/Dockerfile.gcc" -t gcc-app:latest .)
+          (cd "$REPO_ROOT/apps/zephyr_app" && docker buildx build --load -f "$REPO_ROOT/docker/Dockerfile.zephyr" -t zephyr-app:latest .)
 
   deploy:
     name: Deploy Stage
