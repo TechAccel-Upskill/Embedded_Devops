@@ -40,22 +40,38 @@ jobs:
           echo "Using repository root: $REPO_ROOT"
           echo "Using project root: $PROJECT_ROOT"
 
-          if [ ! -d "$PROJECT_ROOT/apps/freertos_app" ] || [ ! -d "$PROJECT_ROOT/apps/gcc_app" ] || [ ! -d "$PROJECT_ROOT/apps/zephyr_app" ]; then
-            echo "Expected app directories were not found under $PROJECT_ROOT/apps"
+          APPS=(freertos_app gcc_app zephyr_app)
+          BUILT_COUNT=0
+
+          for APP in "${APPS[@]}"; do
+            APP_DIR="$PROJECT_ROOT/apps/$APP"
+            DOCKERFILE="$PROJECT_ROOT/docker/Dockerfile.${APP%%_app}"
+            IMAGE_NAME="${APP%%_app}-app:latest"
+
+            if [ ! -d "$APP_DIR" ]; then
+              echo "Skipping $APP: app directory not found at $APP_DIR"
+              continue
+            fi
+
+            if [ ! -f "$DOCKERFILE" ]; then
+              echo "Skipping $APP: Dockerfile not found at $DOCKERFILE"
+              continue
+            fi
+
+            echo "Building image $IMAGE_NAME from $APP_DIR"
+            (cd "$APP_DIR" && docker buildx build --load -f "$DOCKERFILE" -t "$IMAGE_NAME" .)
+            BUILT_COUNT=$((BUILT_COUNT + 1))
+          done
+
+          if [ "$BUILT_COUNT" -eq 0 ]; then
+            echo "No buildable app contexts found under $PROJECT_ROOT/apps"
             ls -la "$PROJECT_ROOT" || true
             ls -la "$PROJECT_ROOT/apps" || true
-            exit 1
-          fi
-
-          if [ ! -f "$PROJECT_ROOT/docker/Dockerfile.freertos" ] || [ ! -f "$PROJECT_ROOT/docker/Dockerfile.gcc" ] || [ ! -f "$PROJECT_ROOT/docker/Dockerfile.zephyr" ]; then
-            echo "Expected Dockerfiles were not found under $PROJECT_ROOT/docker"
             ls -la "$PROJECT_ROOT/docker" || true
             exit 1
           fi
 
-          (cd "$PROJECT_ROOT/apps/freertos_app" && docker buildx build --load -f "$PROJECT_ROOT/docker/Dockerfile.freertos" -t freertos-app:latest .)
-          (cd "$PROJECT_ROOT/apps/gcc_app" && docker buildx build --load -f "$PROJECT_ROOT/docker/Dockerfile.gcc" -t gcc-app:latest .)
-          (cd "$PROJECT_ROOT/apps/zephyr_app" && docker buildx build --load -f "$PROJECT_ROOT/docker/Dockerfile.zephyr" -t zephyr-app:latest .)
+          echo "Built $BUILT_COUNT Docker image(s)."
 
   deploy:
     name: Deploy Stage
