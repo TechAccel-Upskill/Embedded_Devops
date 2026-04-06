@@ -15,8 +15,8 @@ DOCKERFILES=(Dockerfile.freertos Dockerfile.gcc Dockerfile.zephyr)
 IMAGES=(freertos-app gcc-app zephyr-app)
 
 # Build Docker images with buildx
-for i in ${!DOCKERFILES[@]}; do
-  docker buildx build --load -f docker/${DOCKERFILES[$i]} -t ${IMAGES[$i]} .
+for i in "${!DOCKERFILES[@]}"; do
+  docker buildx build --load -f "docker/${DOCKERFILES[$i]}" -t "${IMAGES[$i]}" .
 done
 
 echo "Docker images built: ${IMAGES[*]}"
