@@ -32,14 +32,30 @@ jobs:
       - name: Build Docker images
         run: |
           REPO_ROOT="$(git rev-parse --show-toplevel)"
+          PROJECT_ROOT="$REPO_ROOT"
+          if [ ! -d "$PROJECT_ROOT/apps" ] && [ -d "$REPO_ROOT/Embedded_Devops/apps" ]; then
+            PROJECT_ROOT="$REPO_ROOT/Embedded_Devops"
+          fi
+
           echo "Using repository root: $REPO_ROOT"
+          echo "Using project root: $PROJECT_ROOT"
 
-          test -d "$REPO_ROOT/apps/freertos_app" && test -d "$REPO_ROOT/apps/gcc_app" && test -d "$REPO_ROOT/apps/zephyr_app"
-          test -f "$REPO_ROOT/docker/Dockerfile.freertos" && test -f "$REPO_ROOT/docker/Dockerfile.gcc" && test -f "$REPO_ROOT/docker/Dockerfile.zephyr"
+          if [ ! -d "$PROJECT_ROOT/apps/freertos_app" ] || [ ! -d "$PROJECT_ROOT/apps/gcc_app" ] || [ ! -d "$PROJECT_ROOT/apps/zephyr_app" ]; then
+            echo "Expected app directories were not found under $PROJECT_ROOT/apps"
+            ls -la "$PROJECT_ROOT" || true
+            ls -la "$PROJECT_ROOT/apps" || true
+            exit 1
+          fi
 
-          (cd "$REPO_ROOT/apps/freertos_app" && docker buildx build --load -f "$REPO_ROOT/docker/Dockerfile.freertos" -t freertos-app:latest .)
-          (cd "$REPO_ROOT/apps/gcc_app" && docker buildx build --load -f "$REPO_ROOT/docker/Dockerfile.gcc" -t gcc-app:latest .)
-          (cd "$REPO_ROOT/apps/zephyr_app" && docker buildx build --load -f "$REPO_ROOT/docker/Dockerfile.zephyr" -t zephyr-app:latest .)
+          if [ ! -f "$PROJECT_ROOT/docker/Dockerfile.freertos" ] || [ ! -f "$PROJECT_ROOT/docker/Dockerfile.gcc" ] || [ ! -f "$PROJECT_ROOT/docker/Dockerfile.zephyr" ]; then
+            echo "Expected Dockerfiles were not found under $PROJECT_ROOT/docker"
+            ls -la "$PROJECT_ROOT/docker" || true
+            exit 1
+          fi
+
+          (cd "$PROJECT_ROOT/apps/freertos_app" && docker buildx build --load -f "$PROJECT_ROOT/docker/Dockerfile.freertos" -t freertos-app:latest .)
+          (cd "$PROJECT_ROOT/apps/gcc_app" && docker buildx build --load -f "$PROJECT_ROOT/docker/Dockerfile.gcc" -t gcc-app:latest .)
+          (cd "$PROJECT_ROOT/apps/zephyr_app" && docker buildx build --load -f "$PROJECT_ROOT/docker/Dockerfile.zephyr" -t zephyr-app:latest .)
 
   deploy:
     name: Deploy Stage
