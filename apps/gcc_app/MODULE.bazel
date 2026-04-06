@@ -1,0 +1,4 @@
+module(
+    name = "gcc_app",
+    version = "0.1",
+)
