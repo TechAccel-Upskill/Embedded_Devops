@@ -21,7 +21,18 @@ done
 
 echo "Docker images built: ${IMAGES[*]}"
 
-# Deploy to Kubernetes
-kubectl apply -f k8s/manifest.yaml
+# Optionally skip Kubernetes deployment (useful for local image-only builds)
+if [[ "${SKIP_K8S:-0}" == "1" ]]; then
+  echo "SKIP_K8S=1 detected. Skipping Kubernetes deployment."
+  exit 0
+fi
 
-echo "Kubernetes cluster deployed."
+# Deploy to Kubernetes if a cluster is reachable
+if ! kubectl cluster-info >/dev/null 2>&1; then
+  echo "Kubernetes cluster is not reachable. Docker images were built successfully."
+  echo "Start/connect a cluster, then run: kubectl apply -f k8s/manifest.yaml"
+  exit 0
+fi
+
+kubectl apply -f k8s/manifest.yaml
+echo "Kubernetes resources applied from k8s/manifest.yaml."
