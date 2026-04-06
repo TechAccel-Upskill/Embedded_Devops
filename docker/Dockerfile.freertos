@@ -1,0 +1,48 @@
+# ============================================================================
+# Stage 1: Builder
+# ============================================================================
+FROM ubuntu:24.04 AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential=12.9ubuntu3 \
+    cmake=3.28.3-1 \
+    git=1:2.43.0-1ubuntu7.1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY apps/freertos_app/ .
+
+RUN mkdir -p build && \
+    cd build && \
+    cmake .. && \
+    make && \
+    ls -lah freertos_app
+
+# ============================================================================
+# Stage 2: Runtime
+# ============================================================================
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libc6=2.39-0ubuntu8.3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user for security
+RUN useradd -m -u 1000 embedded && \
+    mkdir -p /app && \
+    chown -R embedded:embedded /app
+
+WORKDIR /app
+USER embedded
+
+# Copy only the built binary from builder stage
+COPY --from=builder --chown=embedded:embedded /build/build/freertos_app .
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD test -f /app/freertos_app || exit 1
+
+CMD ["./freertos_app"]

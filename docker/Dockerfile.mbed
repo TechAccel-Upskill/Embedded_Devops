@@ -1,0 +1,54 @@
+# ============================================================================
+# Stage 1: Builder
+# ============================================================================
+FROM ubuntu:24.04 AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential=12.9ubuntu3 \
+    cmake=3.28.3-1 \
+    python3=3.12.3-0ubuntu1 \
+    python3-pip=24.0-1 \
+    git=1:2.43.0-1ubuntu7.1 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir \
+    mbed-cli==2.0.0
+
+WORKDIR /build
+
+COPY apps/mbed_app/ .
+
+RUN mkdir -p build && \
+    cd build && \
+    cmake .. && \
+    make && \
+    test -f mbed_app || (echo "Build failed: mbed_app binary not found" && exit 1)
+
+# ============================================================================
+# Stage 2: Runtime
+# ============================================================================
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libc6=2.39-0ubuntu8.3 \
+    libstdc++6=14-20240412-0ubuntu1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create non-root user for security
+RUN useradd -m -u 1000 embedded && \
+    mkdir -p /app && \
+    chown -R embedded:embedded /app
+
+WORKDIR /app
+USER embedded
+
+# Copy only the built binary from builder stage
+COPY --from=builder --chown=embedded:embedded /build/build/mbed_app .
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD test -f /app/mbed_app || exit 1
+
+CMD ["./mbed_app"]
