@@ -1,0 +1,402 @@
+# ============================================================================
+# Embedded Applications Kubernetes Manifest
+# Combines all K8s resources: Namespace, ResourceQuota, NetworkPolicy,
+# Services, and Deployments for FreeRTOS, Zephyr, and GCC applications
+# ============================================================================
+# Deploy all resources with: kubectl apply -f k8s/manifest.yaml
+# ============================================================================
+
+---
+# ============================================================================
+# NAMESPACE - Isolation & Resource Management
+# ============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: embedded-os
+  labels:
+    name: embedded-os
+    version: v1
+  annotations:
+    description: "Namespace for embedded applications (FreeRTOS, Zephyr, GCC)"
+
+---
+# ============================================================================
+# RESOURCE QUOTA - Prevent Resource Exhaustion
+# ============================================================================
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: embedded-os-quota
+  namespace: embedded-os
+spec:
+  hard:
+    requests.cpu: "3"
+    requests.memory: "1.5Gi"
+    limits.cpu: "6"
+    limits.memory: "3Gi"
+    pods: "30"
+
+---
+# ============================================================================
+# NETWORK POLICY - Security Controls
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: embedded-os-network-policy
+  namespace: embedded-os
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector: {}
+  egress:
+  - to:
+    - podSelector: {}
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# SERVICE - FreeRTOS
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: freertos-service
+  namespace: embedded-os
+  labels:
+    app: freertos
+    version: v1
+  annotations:
+    description: "Service for FreeRTOS application pods"
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 300
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: freertos
+
+---
+# ============================================================================
+# SERVICE - Zephyr
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: zephyr-service
+  namespace: embedded-os
+  labels:
+    app: zephyr
+    version: v1
+  annotations:
+    description: "Service for Zephyr RTOS application pods"
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 300
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: zephyr
+
+---
+# ============================================================================
+# DEPLOYMENT - FreeRTOS Application
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: freertos-app
+  namespace: embedded-os
+  labels:
+    app: freertos
+    version: v1
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: freertos
+  template:
+    metadata:
+      labels:
+        app: freertos
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: freertos-container
+        image: freertos-app:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: APP_NAME
+          value: "freertos-app"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "test -f /app/build/freertos_app && echo ok"
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "test -f /app/build/freertos_app && echo ok"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+---
+# ============================================================================
+# DEPLOYMENT - Zephyr Application
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zephyr-app
+  namespace: embedded-os
+  labels:
+    app: zephyr
+    version: v1
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: zephyr
+  template:
+    metadata:
+      labels:
+        app: zephyr
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: zephyr-container
+        image: zephyr-app:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: APP_NAME
+          value: "zephyr-app"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "200m"
+          limits:
+            memory: "256Mi"
+            cpu: "750m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "test -f /app/build/zephyr_app && echo ok"
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "test -f /app/build/zephyr_app && echo ok"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+---
+# ============================================================================
+# SERVICE - GCC C++ Application
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gcc-service
+  namespace: embedded-os
+  labels:
+    app: gcc
+    version: v1
+  annotations:
+    description: "Service for GCC C++ application pods"
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 300
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: gcc
+
+---
+# ============================================================================
+# DEPLOYMENT - GCC C++ Application
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gcc-app
+  namespace: embedded-os
+  labels:
+    app: gcc
+    version: v1
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gcc
+  template:
+    metadata:
+      labels:
+        app: gcc
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: gcc-container
+        image: gcc-app:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: APP_NAME
+          value: "gcc-app"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "150m"
+          limits:
+            memory: "256Mi"
+            cpu: "600m"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "test -f /app/build/gcc_app && echo ok"
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "test -f /app/build/gcc_app && echo ok"
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 2
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL

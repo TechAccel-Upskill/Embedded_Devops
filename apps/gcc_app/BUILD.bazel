@@ -1,0 +1,11 @@
+cc_binary(
+    name = "mbed_app",
+    srcs = ["main.cpp"],
+    copts = [
+        "-Wall",
+        "-Wextra",
+        "-O2",
+    ],
+    linkopts = ["-pthread"],
+    visibility = ["//visibility:public"],
+)

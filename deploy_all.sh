@@ -11,8 +11,8 @@ if ! docker buildx version &>/dev/null; then
   exit 1
 fi
 
-DOCKERFILES=(Dockerfile.freertos Dockerfile.mbed Dockerfile.zephyr)
-IMAGES=(freertos-app mbed-app zephyr-app)
+DOCKERFILES=(Dockerfile.freertos Dockerfile.gcc Dockerfile.zephyr)
+IMAGES=(freertos-app gcc-app zephyr-app)
 
 # Build Docker images with buildx
 for i in ${!DOCKERFILES[@]}; do
@@ -22,6 +22,6 @@ done
 echo "Docker images built: ${IMAGES[*]}"
 
 # Deploy to Kubernetes
-kubectl apply -f k8s/cluster.yaml
+kubectl apply -f k8s/manifest.yaml
 
 echo "Kubernetes cluster deployed."

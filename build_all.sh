@@ -8,7 +8,7 @@ set -e
 declare -A apps
 apps=( 
     ["freertos_app"]="CMakeLists.txt Makefile BUILD.bazel"
-    ["mbed_app"]="CMakeLists.txt Makefile BUILD.bazel"
+    ["gcc_app"]="CMakeLists.txt Makefile BUILD.bazel"
     ["zephyr_app"]="CMakeLists.txt Makefile BUILD.bazel"
 )
 
