@@ -31,9 +31,9 @@ jobs:
 
       - name: Build Docker images
         run: |
-          docker buildx build --load -f "$GITHUB_WORKSPACE/docker/Dockerfile.freertos" -t freertos-app:latest "$GITHUB_WORKSPACE"
-          docker buildx build --load -f "$GITHUB_WORKSPACE/docker/Dockerfile.gcc" -t gcc-app:latest "$GITHUB_WORKSPACE"
-          docker buildx build --load -f "$GITHUB_WORKSPACE/docker/Dockerfile.zephyr" -t zephyr-app:latest "$GITHUB_WORKSPACE"
+          docker buildx build --load -f "$GITHUB_WORKSPACE/docker/Dockerfile.freertos" -t freertos-app:latest "$GITHUB_WORKSPACE/apps/freertos_app"
+          docker buildx build --load -f "$GITHUB_WORKSPACE/docker/Dockerfile.gcc" -t gcc-app:latest "$GITHUB_WORKSPACE/apps/gcc_app"
+          docker buildx build --load -f "$GITHUB_WORKSPACE/docker/Dockerfile.zephyr" -t zephyr-app:latest "$GITHUB_WORKSPACE/apps/zephyr_app"
 
   deploy:
     name: Deploy Stage

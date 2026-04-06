@@ -22,10 +22,11 @@ RUN id -u embedded >/dev/null 2>&1 || useradd -m embedded && \
 WORKDIR /app
 
 # Copy application source
-COPY apps/freertos_app/ .
+COPY . .
 
 # Build the application
-RUN mkdir -p build && \
+RUN rm -rf build && \
+    mkdir -p build && \
     cd build && \
     cmake .. && \
     make && \
