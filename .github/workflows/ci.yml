@@ -85,8 +85,8 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Validate Kubernetes manifest structure
-        run: kubectl apply --dry-run=client --validate=false -f k8s/manifest.yaml
+      - name: Validate Kubernetes manifest structure (offline)
+        run: kubectl create --dry-run=client --validate=false -f k8s/manifest.yaml -o name > /dev/null
 
       - name: Deploy to Kubernetes (when KUBE_CONFIG is available)
         env:
