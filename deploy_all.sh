@@ -2,6 +2,10 @@
 # deploy_all.sh - Build all Docker images with BuildKit and deploy Kubernetes manifests
 set -e
 
+# Always run relative to the repository root (script location)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 # Enable BuildKit
 export DOCKER_BUILDKIT=1
 
