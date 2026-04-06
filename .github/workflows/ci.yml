@@ -85,18 +85,18 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Validate Kubernetes manifest structure (offline)
-        run: kubectl create --dry-run=client --validate=false -f k8s/manifest.yaml -o name > /dev/null
-
-      - name: Deploy to Kubernetes (when KUBE_CONFIG is available)
+      - name: Validate and deploy to Kubernetes (when KUBE_CONFIG is available)
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
           if [ -z "$KUBE_CONFIG" ]; then
-            echo "KUBE_CONFIG secret not set; skipping cluster deployment."
+            echo "KUBE_CONFIG secret not set; skipping manifest validation and deployment."
             exit 0
           fi
 
           mkdir -p "$HOME/.kube"
           echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
+
+          # Validate against the target cluster schema before applying.
+          kubectl apply --dry-run=server -f k8s/manifest.yaml
           kubectl apply -f k8s/manifest.yaml
