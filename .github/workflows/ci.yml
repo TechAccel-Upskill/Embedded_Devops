@@ -1,102 +1,150 @@
 name: CI/CD Pipeline
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PIPELINE OVERVIEW
+#
+#  Job 1 — build-builder-image  (only when docker/Dockerfile.builder changes)
+#    Builds the shared embedded-builder toolchain image (cmake, make, git, curl)
+#    and pushes to GHCR. App Dockerfiles FROM this image so tools install once.
+#
+#  Job 2 — build-and-push-apps  (matrix, one job per cmake variant in variants.yaml)
+#    Cross-compiles the app inside a multi-stage Docker build using:
+#      PLATFORM=<gnu-triple>  CMAKE_PRESET=<preset>
+#    Pushes per-arch image: ghcr.io/<org>/<app>-<arch>:latest
+#
+#  Job 3 — deploy  (main branch only, after job 2)
+#    Regenerates k8s/manifest.yaml from variants.yaml and applies to cluster.
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
+env:
+  REGISTRY: ghcr.io
+  ORG: techaccel-upskill
+
 jobs:
-  build:
-    name: Build Stage
+  # ── Job 1: Shared builder base image ───────────────────────────────────────
+  build-builder-image:
+    name: Build & Push Builder Base Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    if: |
+      github.event_name == 'push' &&
+      contains(toJson(github.event.commits.*.modified), 'docker/Dockerfile.builder')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push embedded-builder
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.builder
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.ORG }}/embedded-builder:latest
+            ${{ env.REGISTRY }}/${{ env.ORG }}/embedded-builder:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.ORG }}/embedded-builder:latest
+          cache-to: type=inline
+
+  # ── Job 2: Generate matrix, build & push each (app, arch) image ────────────
+  generate-matrix:
+    name: Generate Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install python3-yaml
+        run: sudo apt-get install -y python3-yaml
+      - name: Generate matrix JSON
+        id: gen
+        run: |
+          MATRIX=$(python3 scripts/generate_matrix.py)
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+
+  build-and-push-apps:
+    name: Build ${{ matrix.app }} [${{ matrix.arch }}]
+    runs-on: ubuntu-latest
+    needs: generate-matrix
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake make shellcheck
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Build applications
-        run: bash ./build_all.sh
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lint shell scripts
-        run: shellcheck build_all.sh deploy_all.sh
+      - name: Build and push ${{ matrix.image }}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: ${{ github.event_name == 'push' }}
+          build-args: |
+            PLATFORM=${{ matrix.platform }}
+            CMAKE_PRESET=${{ matrix.cmake_preset }}
+          tags: |
+            ${{ matrix.image }}:latest
+            ${{ matrix.image }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ matrix.image }}:latest
+          cache-to: type=inline
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker images
-        run: |
-          REPO_ROOT="$(git rev-parse --show-toplevel)"
-          PROJECT_ROOT="$REPO_ROOT"
-          if [ ! -d "$PROJECT_ROOT/apps" ] && [ -d "$REPO_ROOT/Embedded_Devops/apps" ]; then
-            PROJECT_ROOT="$REPO_ROOT/Embedded_Devops"
-          fi
-
-          echo "Using repository root: $REPO_ROOT"
-          echo "Using project root: $PROJECT_ROOT"
-
-          APPS=(freertos_app gcc_app zephyr_app)
-          BUILT_COUNT=0
-
-          for APP in "${APPS[@]}"; do
-            APP_DIR="$PROJECT_ROOT/apps/$APP"
-            DOCKERFILE="$PROJECT_ROOT/docker/Dockerfile.${APP%%_app}"
-            IMAGE_NAME="${APP%%_app}-app:latest"
-
-            if [ ! -d "$APP_DIR" ]; then
-              echo "Skipping $APP: app directory not found at $APP_DIR"
-              continue
-            fi
-
-            if [ ! -f "$DOCKERFILE" ]; then
-              echo "Skipping $APP: Dockerfile not found at $DOCKERFILE"
-              continue
-            fi
-
-            echo "Building image $IMAGE_NAME from $APP_DIR"
-            (cd "$APP_DIR" && docker buildx build --load -f "$DOCKERFILE" -t "$IMAGE_NAME" .)
-            BUILT_COUNT=$((BUILT_COUNT + 1))
-          done
-
-          if [ "$BUILT_COUNT" -eq 0 ]; then
-            echo "No buildable app contexts found under $PROJECT_ROOT/apps"
-            ls -la "$PROJECT_ROOT" || true
-            ls -la "$PROJECT_ROOT/apps" || true
-            ls -la "$PROJECT_ROOT/docker" || true
-            exit 1
-          fi
-
-          echo "Built $BUILT_COUNT Docker image(s)."
-
+  # ── Job 3: Deploy to Kubernetes ────────────────────────────────────────────
   deploy:
-    name: Deploy Stage
+    name: Deploy to Kubernetes
     runs-on: ubuntu-latest
-    needs: build
-
+    needs: build-and-push-apps
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Install python3-yaml
+        run: sudo apt-get install -y python3-yaml
 
-      - name: Validate and deploy to Kubernetes (when KUBE_CONFIG is available)
+      - name: Regenerate k8s manifest
+        run: python3 scripts/generate_k8s.py
+
+      - uses: azure/setup-kubectl@v4
+
+      - name: Apply to Kubernetes
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
           if [ -z "$KUBE_CONFIG" ]; then
-            echo "KUBE_CONFIG secret not set; skipping manifest validation and deployment."
+            echo "KUBE_CONFIG not set — skipping live deployment."
             exit 0
           fi
-
           mkdir -p "$HOME/.kube"
           echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
-
-          # Validate against the target cluster schema before applying.
+          chmod 600 "$HOME/.kube/config"
           kubectl apply --dry-run=server -f k8s/manifest.yaml
           kubectl apply -f k8s/manifest.yaml
+          echo ""
+          echo "Deployed. Check: kubectl get pods -n embedded-os"

@@ -1,0 +1,63 @@
+# ============================================================================
+# Dockerfile.gpio_app — Multi-Stage Cross-Compilation
+#
+# STAGES:
+#   1. toolchain  FROM embedded-builder + install cross-compiler for PLATFORM
+#   2. builder    Copy source, cmake --preset, cmake --build
+#   3. runtime    debian:slim + binary only
+#
+# BUILD ARGS:
+#   PLATFORM       GNU triple of the target (default: native)
+#   CMAKE_PRESET   Preset from CMakePresets.json (default: release-x86_64)
+#
+# NOTES:
+#   gpio_app uses Linux sysfs (/sys/class/gpio/).
+#   On real embedded hardware (RPi, BeagleBone) mount the sysfs into the
+#   container: docker run -v /sys:/sys --privileged gpio-app-arm-cortex-a
+#   Without sysfs GPIO access, the app runs in simulation mode automatically.
+# ============================================================================
+
+ARG PLATFORM=native
+ARG CMAKE_PRESET=release-x86_64
+
+# ── Stage 1: toolchain ──────────────────────────────────────────────────────
+FROM ghcr.io/techaccel-upskill/embedded-builder:latest AS toolchain
+ARG PLATFORM
+
+RUN if [ "$PLATFORM" = "native" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        build-essential && rm -rf /var/lib/apt/lists/*; \
+    else \
+      apt-get update && apt-get install -y --no-install-recommends \
+        gcc-${PLATFORM} g++-${PLATFORM} && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# ── Stage 2: builder ────────────────────────────────────────────────────────
+FROM toolchain AS builder
+ARG CMAKE_PRESET
+
+WORKDIR /src
+COPY cmake/ cmake/
+COPY apps/gpio_app/ apps/gpio_app/
+
+WORKDIR /src/apps/gpio_app
+RUN cmake --preset "${CMAKE_PRESET}" && cmake --build --preset "${CMAKE_PRESET}"
+
+# ── Stage 3: runtime ────────────────────────────────────────────────────────
+FROM debian:bookworm-slim AS runtime
+ARG CMAKE_PRESET
+
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m embedded && mkdir -p /app && chown -R embedded:embedded /app
+
+COPY --from=builder --chown=embedded:embedded \
+    /src/apps/gpio_app/build/${CMAKE_PRESET}/gpio_app /app/gpio_app
+
+USER embedded
+WORKDIR /app
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD test -f /app/gpio_app || exit 1
+
+CMD ["/app/gpio_app"]

@@ -1,0 +1,13 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+cc_binary(
+    name = "gpio_app",
+    srcs = ["main.cpp"],
+    copts = [
+        "-std=c++17",
+        "-Wall",
+        "-Wextra",
+        "-O2",
+    ],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,51 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "release-x86_64",
+      "inherits": "base",
+      "displayName": "Release — x86_64 (native)",
+      "description": "Native build for x86_64 Linux host"
+    },
+    {
+      "name": "release-arm",
+      "inherits": "base",
+      "displayName": "Release — ARM Cortex-A (arm-linux-gnueabihf)",
+      "description": "Cross-compile for 32-bit ARM Linux (RPi2/3, BeagleBone)",
+      "toolchainFile": "${sourceDir}/../../cmake/toolchain-arm-linux-gnueabihf.cmake"
+    },
+    {
+      "name": "release-aarch64",
+      "inherits": "base",
+      "displayName": "Release — AArch64 (aarch64-linux-gnu)",
+      "description": "Cross-compile for 64-bit ARM Linux (RPi4/5, Jetson)",
+      "toolchainFile": "${sourceDir}/../../cmake/toolchain-aarch64-linux-gnu.cmake"
+    },
+    {
+      "name": "release-riscv64",
+      "inherits": "base",
+      "displayName": "Release — RISC-V 64-bit (riscv64-linux-gnu)",
+      "description": "Cross-compile for RISC-V 64-bit Linux (VisionFive 2)",
+      "toolchainFile": "${sourceDir}/../../cmake/toolchain-riscv64-linux-gnu.cmake"
+    }
+  ],
+
+  "buildPresets": [
+    { "name": "release-x86_64",  "configurePreset": "release-x86_64"  },
+    { "name": "release-arm",     "configurePreset": "release-arm"     },
+    { "name": "release-aarch64", "configurePreset": "release-aarch64" },
+    { "name": "release-riscv64", "configurePreset": "release-riscv64" }
+  ]
+}

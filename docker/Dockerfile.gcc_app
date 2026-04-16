@@ -1,0 +1,137 @@
+# ============================================================================
+# Dockerfile.gcc_app — Multi-Stage Cross-Compilation
+#
+# STAGES:
+#   1. toolchain  FROM embedded-builder + install cross-compiler for PLATFORM
+#   2. builder    Copy source, cmake --preset, cmake --build
+#   3. runtime    debian:slim + binary only (no compiler, no build tools)
+#
+# BUILD ARGS:
+#   PLATFORM       GNU triple of the target (default: native)
+#                  arm-linux-gnueabihf | aarch64-linux-gnu | riscv64-linux-gnu
+#   CMAKE_PRESET   Preset name from CMakePresets.json (default: release-x86_64)
+#                  release-x86_64 | release-arm | release-aarch64 | release-riscv64
+#
+# BUILD EXAMPLES:
+#   # Native x86_64
+#   docker buildx build --build-arg PLATFORM=native \
+#     --build-arg CMAKE_PRESET=release-x86_64 \
+#     -f docker/Dockerfile.gcc_app -t gcc-app-x86_64 .
+#
+#   # Cross-compile for ARM Cortex-A
+#   docker buildx build --build-arg PLATFORM=arm-linux-gnueabihf \
+#     --build-arg CMAKE_PRESET=release-arm \
+#     -f docker/Dockerfile.gcc_app -t gcc-app-arm-cortex-a .
+#
+#   # Cross-compile for AArch64
+#   docker buildx build --build-arg PLATFORM=aarch64-linux-gnu \
+#     --build-arg CMAKE_PRESET=release-aarch64 \
+#     -f docker/Dockerfile.gcc_app -t gcc-app-aarch64 .
+# ============================================================================
+
+ARG PLATFORM=native
+ARG CMAKE_PRESET=release-x86_64
+
+# ── Stage 1: toolchain ──────────────────────────────────────────────────────
+# Base tools (cmake, make, git, curl, bazel) from the shared builder image.
+# Extend with the cross-compiler specific to the target PLATFORM.
+FROM ghcr.io/techaccel-upskill/embedded-builder:latest AS toolchain
+ARG PLATFORM
+
+RUN if [ "$PLATFORM" = "native" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        build-essential && rm -rf /var/lib/apt/lists/*; \
+    else \
+      apt-get update && apt-get install -y --no-install-recommends \
+        gcc-${PLATFORM} g++-${PLATFORM} && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# ── Stage 2: builder ────────────────────────────────────────────────────────
+# Copy source tree and cross-compile using the selected CMake preset.
+# Binary lands in: apps/gcc_app/build/<CMAKE_PRESET>/gcc_app
+FROM toolchain AS builder
+ARG CMAKE_PRESET
+
+WORKDIR /src
+COPY cmake/ cmake/
+COPY apps/gcc_app/ apps/gcc_app/
+
+WORKDIR /src/apps/gcc_app
+RUN cmake --preset "${CMAKE_PRESET}" && cmake --build --preset "${CMAKE_PRESET}"
+
+# ── Stage 3: runtime ────────────────────────────────────────────────────────
+# Minimal image — only the compiled binary, libstdc++, and a non-root user.
+# No compiler, no cmake, no source code in the final image.
+FROM debian:bookworm-slim AS runtime
+ARG CMAKE_PRESET
+
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m embedded && mkdir -p /app && chown -R embedded:embedded /app
+
+COPY --from=builder --chown=embedded:embedded \
+    /src/apps/gcc_app/build/${CMAKE_PRESET}/gcc_app /app/gcc_app
+
+USER embedded
+WORKDIR /app
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD test -f /app/gcc_app || exit 1
+
+CMD ["/app/gcc_app"]
+#
+# SUMMARY:
+#   Two-stage build for a standard C++ embedded application.
+#
+#   STAGE 1 — builder:
+#     Uses the shared 'embedded-builder' base image (pre-installed with
+#     GCC, CMake, Make, and Bazel). No tools are reinstalled here.
+#     Compiles the application via CMake + Make and verifies the binary.
+#
+#   STAGE 2 — runtime:
+#     Starts from a minimal debian:bookworm-slim image (no compiler, no
+#     build tools) and copies only the compiled binary from Stage 1.
+#     This keeps the final image small and free of unnecessary tooling.
+#
+# WHAT IT DOES (step by step):
+#   1. Inherits all build tools from ghcr.io/ORG/embedded-builder:latest.
+#   2. Copies source code and compiles gcc_app with CMake + Make.
+#   3. Switches to a slim runtime base with no build tools.
+#   4. Creates a non-root user 'embedded' for security.
+#   5. Copies only the compiled binary into the runtime image.
+#   6. Exposes port 8080 and runs a health check on the binary.
+#   7. Launches gcc_app as the container entrypoint.
+# ============================================================================
+
+# ── Stage 1: Build ──────────────────────────────────────────────────────────
+ARG BUILDER_IMAGE=ghcr.io/techaccel-upskill/embedded-builder:latest
+FROM ${BUILDER_IMAGE} AS builder
+
+WORKDIR /app
+COPY . .
+
+RUN rm -rf build && \
+    mkdir -p build && \
+    cd build && \
+    cmake .. && \
+    make && \
+    test -f gcc_app || (echo "Build failed: gcc_app binary not found" && exit 1)
+
+# ── Stage 2: Runtime ────────────────────────────────────────────────────────
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m embedded && mkdir -p /app/build && chown -R embedded:embedded /app
+
+WORKDIR /app
+COPY --from=builder --chown=embedded:embedded /app/build/gcc_app ./build/gcc_app
+
+USER embedded
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD test -f /app/build/gcc_app || exit 1
+
+CMD ["./build/gcc_app"]

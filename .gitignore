@@ -18,6 +18,7 @@ Makefile
 bazel-*
 .bazelrc
 .bazel
+MODULE.bazel.lock
 
 # IDE and editor files
 .vscode/
@@ -31,10 +32,16 @@ bazel-*
 *.so
 *.dylib
 
-# Executable files
-freertos_app
-mbed_app
-zephyr_app
+# App build output directories (CMake presets, Make cross builds)
+apps/*/build/
+apps/*/build-*/
+
+# Compiled app binaries
+apps/gcc_app/gcc_app
+apps/sensor_app/sensor_app
+apps/watchdog_app/watchdog_app
+apps/canbus_app/canbus_app
+apps/gpio_app/gpio_app
 *.elf
 *.bin
 *.hex

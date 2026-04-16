@@ -1,0 +1,65 @@
+# ============================================================================
+# Dockerfile.canbus_app — Multi-Stage Cross-Compilation
+#
+# STAGES:
+#   1. toolchain  FROM embedded-builder + install cross-compiler for PLATFORM
+#   2. builder    Copy source, cmake --preset, cmake --build
+#   3. runtime    debian:slim + binary only
+#
+# BUILD ARGS:
+#   PLATFORM       GNU triple of the target (default: native)
+#   CMAKE_PRESET   Preset from CMakePresets.json (default: release-x86_64)
+#
+# NOTES:
+#   canbus_app uses linux/can.h (SocketCAN kernel headers).
+#   These are included in all Linux cross-compiler sysroots on Debian bookworm.
+#   At runtime, bind a vcan interface for testing without CAN hardware:
+#     modprobe vcan
+#     ip link add vcan0 type vcan && ip link set vcan0 up
+#   Without an interface, the app runs in simulation mode automatically.
+# ============================================================================
+
+ARG PLATFORM=native
+ARG CMAKE_PRESET=release-x86_64
+
+# ── Stage 1: toolchain ──────────────────────────────────────────────────────
+FROM ghcr.io/techaccel-upskill/embedded-builder:latest AS toolchain
+ARG PLATFORM
+
+RUN if [ "$PLATFORM" = "native" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        build-essential && rm -rf /var/lib/apt/lists/*; \
+    else \
+      apt-get update && apt-get install -y --no-install-recommends \
+        gcc-${PLATFORM} g++-${PLATFORM} && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# ── Stage 2: builder ────────────────────────────────────────────────────────
+FROM toolchain AS builder
+ARG CMAKE_PRESET
+
+WORKDIR /src
+COPY cmake/ cmake/
+COPY apps/canbus_app/ apps/canbus_app/
+
+WORKDIR /src/apps/canbus_app
+RUN cmake --preset "${CMAKE_PRESET}" && cmake --build --preset "${CMAKE_PRESET}"
+
+# ── Stage 3: runtime ────────────────────────────────────────────────────────
+FROM debian:bookworm-slim AS runtime
+ARG CMAKE_PRESET
+
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m embedded && mkdir -p /app && chown -R embedded:embedded /app
+
+COPY --from=builder --chown=embedded:embedded \
+    /src/apps/canbus_app/build/${CMAKE_PRESET}/canbus_app /app/canbus_app
+
+USER embedded
+WORKDIR /app
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD test -f /app/canbus_app || exit 1
+
+CMD ["/app/canbus_app"]

@@ -1,0 +1,74 @@
+# ============================================================================
+# Dockerfile.watchdog_app — Multi-Stage Cross-Compilation
+#
+# STAGES:
+#   1. toolchain  FROM embedded-builder + install cross-compiler for PLATFORM
+#   2. builder    Copy source, cmake --preset, cmake --build
+#   3. runtime    debian:slim + binary only
+#
+# BUILD ARGS:
+#   PLATFORM       GNU triple of the target (default: native)
+#   CMAKE_PRESET   Preset from CMakePresets.json (default: release-x86_64)
+#
+# NOTES:
+#   watchdog_app exposes an HTTP /health endpoint on port 8080.
+#   Kubernetes liveness probe uses httpGet → hits the running process.
+#   This is the most realistic k8s health check in this repo.
+#
+# BUILD EXAMPLES:
+#   docker buildx build --build-arg PLATFORM=native \
+#     --build-arg CMAKE_PRESET=release-x86_64 \
+#     -f docker/Dockerfile.watchdog_app -t watchdog-app-x86_64 .
+#
+#   docker buildx build --build-arg PLATFORM=aarch64-linux-gnu \
+#     --build-arg CMAKE_PRESET=release-aarch64 \
+#     -f docker/Dockerfile.watchdog_app -t watchdog-app-aarch64 .
+# ============================================================================
+
+ARG PLATFORM=native
+ARG CMAKE_PRESET=release-x86_64
+
+# ── Stage 1: toolchain ──────────────────────────────────────────────────────
+FROM ghcr.io/techaccel-upskill/embedded-builder:latest AS toolchain
+ARG PLATFORM
+
+RUN if [ "$PLATFORM" = "native" ]; then \
+      apt-get update && apt-get install -y --no-install-recommends \
+        build-essential && rm -rf /var/lib/apt/lists/*; \
+    else \
+      apt-get update && apt-get install -y --no-install-recommends \
+        gcc-${PLATFORM} g++-${PLATFORM} && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# ── Stage 2: builder ────────────────────────────────────────────────────────
+FROM toolchain AS builder
+ARG CMAKE_PRESET
+
+WORKDIR /src
+COPY cmake/ cmake/
+COPY apps/watchdog_app/ apps/watchdog_app/
+
+WORKDIR /src/apps/watchdog_app
+RUN cmake --preset "${CMAKE_PRESET}" && cmake --build --preset "${CMAKE_PRESET}"
+
+# ── Stage 3: runtime ────────────────────────────────────────────────────────
+FROM debian:bookworm-slim AS runtime
+ARG CMAKE_PRESET
+
+RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m embedded && mkdir -p /app && chown -R embedded:embedded /app
+
+COPY --from=builder --chown=embedded:embedded \
+    /src/apps/watchdog_app/build/${CMAKE_PRESET}/watchdog_app /app/watchdog_app
+
+USER embedded
+WORKDIR /app
+
+EXPOSE 8080
+
+# Real HTTP health check — k8s liveness probe hits this endpoint
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD wget -qO- http://localhost:8080/health || exit 1
+
+CMD ["/app/watchdog_app"]

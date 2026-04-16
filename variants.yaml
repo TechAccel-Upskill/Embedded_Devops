@@ -1,0 +1,152 @@
+# variants.yaml — Master build variant definition
+# ─────────────────────────────────────────────────────────────────────────────
+# Single source of truth for all cross-compilation variants in this repo.
+# Each entry = ONE build unit: which app, for which platform, using which
+# build system.
+#
+# This file drives:
+#   - build_all.sh        (native builds)
+#   - deploy_all.sh       (Docker image builds + push to GHCR)
+#   - scripts/generate_k8s.py    (Kubernetes manifest generation)
+#   - scripts/generate_matrix.py (CI job matrix generation)
+#
+# Fields:
+#   app:          directory name under apps/
+#   arch:         human-readable target architecture identifier
+#   platform:     GNU triple of the target platform (or 'native' for host)
+#   build_system: cmake | make | bazel
+#   cmake_preset: (cmake only) preset name in apps/<app>/CMakePresets.json
+#   make_arch:    (make only) ARCH= value passed to Makefile
+#   bazel_config: (bazel only) --config= value defined in apps/<app>/.bazelrc
+#
+# Platform → cross-compiler package (Debian bookworm):
+#   arm-linux-gnueabihf  → gcc-arm-linux-gnueabihf  g++-arm-linux-gnueabihf
+#   aarch64-linux-gnu    → gcc-aarch64-linux-gnu     g++-aarch64-linux-gnu
+#   riscv64-linux-gnu    → gcc-riscv64-linux-gnu     g++-riscv64-linux-gnu
+#   native               → gcc / g++ (host compiler)
+#
+# Toolchain cmake files: cmake/toolchain-<platform>.cmake
+#
+# Docker image tag:  ghcr.io/techaccel-upskill/<app-arch>:latest
+# K8s Deployment:    <app-arch>  (underscores → dashes)
+# ─────────────────────────────────────────────────────────────────────────────
+
+variants:
+
+  # ── gcc_app ─ baseline: demonstrates all build systems + all platforms ─────
+
+  - app: gcc_app
+    arch: x86_64
+    platform: native
+    build_system: cmake
+    cmake_preset: release-x86_64
+
+  - app: gcc_app
+    arch: arm-cortex-a
+    platform: arm-linux-gnueabihf
+    build_system: cmake
+    cmake_preset: release-arm
+
+  - app: gcc_app
+    arch: aarch64
+    platform: aarch64-linux-gnu
+    build_system: cmake
+    cmake_preset: release-aarch64
+
+  - app: gcc_app
+    arch: riscv64
+    platform: riscv64-linux-gnu
+    build_system: make
+    make_arch: riscv64
+
+  - app: gcc_app
+    arch: x86_64
+    platform: native
+    build_system: bazel
+    bazel_config: x86_64
+
+  # ── sensor_app ─ IoT sensor data publisher ────────────────────────────────
+
+  - app: sensor_app
+    arch: x86_64
+    platform: native
+    build_system: cmake
+    cmake_preset: release-x86_64
+
+  - app: sensor_app
+    arch: arm-cortex-a
+    platform: arm-linux-gnueabihf
+    build_system: cmake
+    cmake_preset: release-arm
+
+  - app: sensor_app
+    arch: aarch64
+    platform: aarch64-linux-gnu
+    build_system: cmake
+    cmake_preset: release-aarch64
+
+  - app: sensor_app
+    arch: riscv64
+    platform: riscv64-linux-gnu
+    build_system: make
+    make_arch: riscv64
+
+  # ── watchdog_app ─ embedded health watchdog daemon ────────────────────────
+
+  - app: watchdog_app
+    arch: x86_64
+    platform: native
+    build_system: cmake
+    cmake_preset: release-x86_64
+
+  - app: watchdog_app
+    arch: arm-cortex-a
+    platform: arm-linux-gnueabihf
+    build_system: cmake
+    cmake_preset: release-arm
+
+  - app: watchdog_app
+    arch: aarch64
+    platform: aarch64-linux-gnu
+    build_system: make
+    make_arch: aarch64
+
+  # ── canbus_app ─ SocketCAN message handler ────────────────────────────────
+
+  - app: canbus_app
+    arch: x86_64
+    platform: native
+    build_system: cmake
+    cmake_preset: release-x86_64
+
+  - app: canbus_app
+    arch: arm-cortex-a
+    platform: arm-linux-gnueabihf
+    build_system: cmake
+    cmake_preset: release-arm
+
+  - app: canbus_app
+    arch: aarch64
+    platform: aarch64-linux-gnu
+    build_system: cmake
+    cmake_preset: release-aarch64
+
+  # ── gpio_app ─ Linux sysfs GPIO control daemon ────────────────────────────
+
+  - app: gpio_app
+    arch: x86_64
+    platform: native
+    build_system: cmake
+    cmake_preset: release-x86_64
+
+  - app: gpio_app
+    arch: arm-cortex-a
+    platform: arm-linux-gnueabihf
+    build_system: cmake
+    cmake_preset: release-arm
+
+  - app: gpio_app
+    arch: aarch64
+    platform: aarch64-linux-gnu
+    build_system: cmake
+    cmake_preset: release-aarch64

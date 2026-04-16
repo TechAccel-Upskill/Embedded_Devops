@@ -1,0 +1,17 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+# Note: Bazel builds are native x86_64 only in this repo.
+# Cross-compilation via Bazel requires additional toolchain rules.
+# Use cmake or make for cross-platform builds.
+cc_binary(
+    name = "watchdog_app",
+    srcs = ["main.cpp"],
+    copts = [
+        "-std=c++17",
+        "-Wall",
+        "-Wextra",
+        "-O2",
+    ],
+    linkopts = ["-pthread"],
+    visibility = ["//visibility:public"],
+)
