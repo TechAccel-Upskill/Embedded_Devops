@@ -32,6 +32,21 @@ install_prerequisites() {
         sudo chmod +x /usr/local/bin/bazel
     fi
 
+    # Cross-compilers for all supported target platforms
+    local cross_pkgs=(
+        gcc-arm-linux-gnueabihf   g++-arm-linux-gnueabihf
+        gcc-aarch64-linux-gnu     g++-aarch64-linux-gnu
+        gcc-riscv64-linux-gnu     g++-riscv64-linux-gnu
+    )
+    local missing=()
+    for pkg in "${cross_pkgs[@]}"; do
+        dpkg -s "$pkg" &>/dev/null || missing+=("$pkg")
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "  Installing cross-compilers: ${missing[*]}"
+        sudo apt-get install -y -q "${missing[@]}"
+    fi
+
     echo "=== Prerequisites ready ==="
     echo ""
 }
