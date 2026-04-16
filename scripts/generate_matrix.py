@@ -81,7 +81,7 @@ def main():
             "dockerfile": dockerfile,
         })
 
-    print(json.dumps(matrix, indent=2))
+    print(json.dumps(matrix))
 
 
 if __name__ == "__main__":
