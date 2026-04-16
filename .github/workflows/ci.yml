@@ -111,8 +111,8 @@ jobs:
           tags: |
             ${{ matrix.image }}:latest
             ${{ matrix.image }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ matrix.image }}:latest
-          cache-to: type=inline
+          cache-from: type=registry,ref=${{ matrix.image }}:cache
+          cache-to: type=registry,ref=${{ matrix.image }}:cache,mode=max
 
   # ── Job 3: Deploy to Kubernetes ────────────────────────────────────────────
   deploy:

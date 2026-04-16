@@ -69,7 +69,7 @@ def main():
         app    = v["app"]
         arch   = v["arch"]
         preset = v.get("cmake_preset", "release-x86_64")
-        image  = f"{REGISTRY}/{k8s_name(app, arch)}:latest"
+        image  = f"{REGISTRY}/{k8s_name(app, arch)}"
         dockerfile = f"docker/Dockerfile.{app}"
 
         matrix.append({
