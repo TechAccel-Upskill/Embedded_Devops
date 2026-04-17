@@ -68,8 +68,10 @@ def image_name(app, arch):
 
 
 def generate_service(app, arch):
+    """Only watchdog_app exposes HTTP — other apps are pure daemons."""
+    if app not in HTTP_APPS:
+        return ""
     name = k8s_name(app, arch)
-    port = 8080 if app in HTTP_APPS else 8080
     return f"""\
 ---
 # Service — {name}
@@ -88,8 +90,8 @@ spec:
     arch: {arch}
   ports:
     - name: http
-      port: {port}
-      targetPort: {port}
+      port: 8080
+      targetPort: 8080
       protocol: TCP
 """
 
@@ -165,10 +167,7 @@ spec:
         app: {app_label}
         arch: {arch}
         variant: {cmake_preset}
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
-    spec:
+{('      annotations:\n        prometheus.io/scrape: "true"\n        prometheus.io/port: "8080"\n') if app in HTTP_APPS else ''}    spec:
       terminationGracePeriodSeconds: 30
       nodeSelector:
         kubernetes.io/arch: {k8s_arch}

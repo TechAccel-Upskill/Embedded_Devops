@@ -313,7 +313,7 @@ ResourceQuota:      limits CPU + memory   # Prevent resource exhaustion
 NetworkPolicy:      controls traffic      # Security controls for pod communication
 
 Per (app × arch) cmake variant:
-  Service:          ClusterIP on port 8080     # Exposes the Deployment
+  Service:          ClusterIP on port 8080     # Only watchdog_app (has HTTP /health)
   Deployment:       2 replicas                 # High availability
                     nodeSelector: arch         # Route to correct hardware
                     imagePullSecrets           # Pull from private GHCR
@@ -346,14 +346,14 @@ A mixed cluster (x86 + ARM Raspberry Pis) will automatically run the right binar
 
 ### K8s Resources Summary
 
-14 Deployments + 14 Services are generated across 5 apps:
+14 Deployments + 2 Services are generated across 5 apps:
 
 ```
-gcc-app          → x86_64, arm-cortex-a, aarch64
-sensor-app       → x86_64, arm-cortex-a, aarch64
-watchdog-app     → x86_64, arm-cortex-a
-canbus-app       → x86_64, arm-cortex-a, aarch64
-gpio-app         → x86_64, arm-cortex-a, aarch64
+gcc-app          → x86_64, arm-cortex-a, aarch64          (Deployment only)
+sensor-app       → x86_64, arm-cortex-a, aarch64          (Deployment only)
+watchdog-app     → x86_64, arm-cortex-a     (Deployment + Service — HTTP /health)
+canbus-app       → x86_64, arm-cortex-a, aarch64          (Deployment only)
+gpio-app         → x86_64, arm-cortex-a, aarch64          (Deployment only)
 ```
 
 ### Verify Deployments

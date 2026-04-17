@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.20)
 
 project(gcc_app LANGUAGES CXX)
 
+# Acknowledge toolchain file variable (used by CMake internally for cross-compilation)
+set(CMAKE_TOOLCHAIN_FILE "${CMAKE_TOOLCHAIN_FILE}" CACHE FILEPATH "Toolchain file")
+
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
