@@ -79,55 +79,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD test -f /app/gcc_app || exit 1
 
 CMD ["/app/gcc_app"]
-#
-# SUMMARY:
-#   Two-stage build for a standard C++ embedded application.
-#
-#   STAGE 1 — builder:
-#     Uses the shared 'embedded-builder' base image (pre-installed with
-#     GCC, CMake, Make, and Bazel). No tools are reinstalled here.
-#     Compiles the application via CMake + Make and verifies the binary.
-#
-#   STAGE 2 — runtime:
-#     Starts from a minimal debian:bookworm-slim image (no compiler, no
-#     build tools) and copies only the compiled binary from Stage 1.
-#     This keeps the final image small and free of unnecessary tooling.
-#
-# WHAT IT DOES (step by step):
-#   1. Inherits all build tools from ghcr.io/ORG/embedded-builder:latest.
-#   2. Copies source code and compiles gcc_app with CMake + Make.
-#   3. Switches to a slim runtime base with no build tools.
-#   4. Creates a non-root user 'embedded' for security.
-#   5. Copies only the compiled binary into the runtime image.
-#   6. Exposes port 8080 and runs a health check on the binary.
-#   7. Launches gcc_app as the container entrypoint.
-# ============================================================================
-
-# ── Stage 1: Build ──────────────────────────────────────────────────────────
-ARG BUILDER_IMAGE=ghcr.io/techaccel-upskill/embedded-builder:latest
-FROM ${BUILDER_IMAGE} AS builder
-
-WORKDIR /app
-COPY . .
-
-RUN rm -rf build && \
-    mkdir -p build && \
-    cd build && \
-    cmake .. && \
-    make && \
-    test -f gcc_app || (echo "Build failed: gcc_app binary not found" && exit 1)
-
-# ── Stage 2: Runtime ────────────────────────────────────────────────────────
-FROM debian:bookworm-slim AS runtime
-
-RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd -m embedded && mkdir -p /app/build && chown -R embedded:embedded /app
-
-WORKDIR /app
-COPY --from=builder --chown=embedded:embedded /app/build/gcc_app ./build/gcc_app
-
-USER embedded
 
 EXPOSE 8080
 
