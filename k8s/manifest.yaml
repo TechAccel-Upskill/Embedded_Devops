@@ -8,12 +8,11 @@
 # Contains: Namespace, ResourceQuota, NetworkPolicy, and one Service +
 # Deployment per unique (app, arch) cmake variant in variants.yaml.
 #
-# PREREQUISITE — create the GHCR pull secret once per cluster:
-#   kubectl create secret docker-registry ghcr-pull-secret \
-#     --namespace embedded-os \
-#     --docker-server=ghcr.io \
-#     --docker-username=<github-username> \
-#     --docker-password=<github-pat-with-read:packages>
+# LOCAL MODE NOTE:
+#   Manifest references local image tags (<app>-<arch>:latest) and does not
+#   include imagePullSecrets. Ensure your cluster can see local Docker images.
+# Image source:
+#   Local Docker image cache
 # ============================================================================
 
 ---
@@ -99,12 +98,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: gcc-app-x86-64
-          image: ghcr.io/techaccel-upskill/gcc-app-x86-64:latest
-          imagePullPolicy: Always
+          image: gcc-app-x86-64:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "gcc-app-x86-64"
@@ -173,12 +170,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: gcc-app-arm-cortex-a
-          image: ghcr.io/techaccel-upskill/gcc-app-arm-cortex-a:latest
-          imagePullPolicy: Always
+          image: gcc-app-arm-cortex-a:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "gcc-app-arm-cortex-a"
@@ -247,12 +242,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: gcc-app-aarch64
-          image: ghcr.io/techaccel-upskill/gcc-app-aarch64:latest
-          imagePullPolicy: Always
+          image: gcc-app-aarch64:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "gcc-app-aarch64"
@@ -321,12 +314,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: sensor-app-x86-64
-          image: ghcr.io/techaccel-upskill/sensor-app-x86-64:latest
-          imagePullPolicy: Always
+          image: sensor-app-x86-64:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "sensor-app-x86-64"
@@ -395,12 +386,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: sensor-app-arm-cortex-a
-          image: ghcr.io/techaccel-upskill/sensor-app-arm-cortex-a:latest
-          imagePullPolicy: Always
+          image: sensor-app-arm-cortex-a:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "sensor-app-arm-cortex-a"
@@ -469,12 +458,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: sensor-app-aarch64
-          image: ghcr.io/techaccel-upskill/sensor-app-aarch64:latest
-          imagePullPolicy: Always
+          image: sensor-app-aarch64:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "sensor-app-aarch64"
@@ -566,12 +553,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: watchdog-app-x86-64
-          image: ghcr.io/techaccel-upskill/watchdog-app-x86-64:latest
-          imagePullPolicy: Always
+          image: watchdog-app-x86-64:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "watchdog-app-x86-64"
@@ -665,12 +650,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: watchdog-app-arm-cortex-a
-          image: ghcr.io/techaccel-upskill/watchdog-app-arm-cortex-a:latest
-          imagePullPolicy: Always
+          image: watchdog-app-arm-cortex-a:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "watchdog-app-arm-cortex-a"
@@ -741,12 +724,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: canbus-app-x86-64
-          image: ghcr.io/techaccel-upskill/canbus-app-x86-64:latest
-          imagePullPolicy: Always
+          image: canbus-app-x86-64:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "canbus-app-x86-64"
@@ -815,12 +796,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: canbus-app-arm-cortex-a
-          image: ghcr.io/techaccel-upskill/canbus-app-arm-cortex-a:latest
-          imagePullPolicy: Always
+          image: canbus-app-arm-cortex-a:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "canbus-app-arm-cortex-a"
@@ -889,12 +868,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: canbus-app-aarch64
-          image: ghcr.io/techaccel-upskill/canbus-app-aarch64:latest
-          imagePullPolicy: Always
+          image: canbus-app-aarch64:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "canbus-app-aarch64"
@@ -963,12 +940,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: gpio-app-x86-64
-          image: ghcr.io/techaccel-upskill/gpio-app-x86-64:latest
-          imagePullPolicy: Always
+          image: gpio-app-x86-64:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "gpio-app-x86-64"
@@ -1037,12 +1012,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: gpio-app-arm-cortex-a
-          image: ghcr.io/techaccel-upskill/gpio-app-arm-cortex-a:latest
-          imagePullPolicy: Always
+          image: gpio-app-arm-cortex-a:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "gpio-app-arm-cortex-a"
@@ -1111,12 +1084,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: gpio-app-aarch64
-          image: ghcr.io/techaccel-upskill/gpio-app-aarch64:latest
-          imagePullPolicy: Always
+          image: gpio-app-aarch64:latest
+          imagePullPolicy: IfNotPresent
           env:
             - name: APP_NAME
               value: "gpio-app-aarch64"

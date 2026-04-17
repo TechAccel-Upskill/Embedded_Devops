@@ -13,6 +13,7 @@
 #   kubectl must be connected to a cluster (kubectl cluster-info)
 #
 # ENV VARS:
+#   DEPLOY_MODE  — registry (default) or local
 #   REGISTRY     — Override registry (default: ghcr.io)
 #   ORG          — Override org/owner  (default: techaccel-upskill)
 #   SKIP_BUILDER — Set to 1 to skip rebuilding the builder base image
@@ -24,9 +25,23 @@ cd "$SCRIPT_DIR"
 
 export DOCKER_BUILDKIT=1
 
+DEPLOY_MODE="${DEPLOY_MODE:-registry}"
 REGISTRY="${REGISTRY:-ghcr.io}"
 ORG="${ORG:-techaccel-upskill}"
 BUILDER_IMAGE="${REGISTRY}/${ORG}/embedded-builder:latest"
+
+case "$DEPLOY_MODE" in
+    registry)
+        DOCKER_BUILD_OUTPUT="--push"
+        ;;
+    local)
+        DOCKER_BUILD_OUTPUT="--load"
+        ;;
+    *)
+        echo "ERROR: DEPLOY_MODE must be 'registry' or 'local' (got: $DEPLOY_MODE)"
+        exit 1
+        ;;
+esac
 
 if ! docker buildx version &>/dev/null; then
     echo "ERROR: Docker buildx not installed. See https://docs.docker.com/go/buildx/"
@@ -44,11 +59,15 @@ if [[ "${SKIP_BUILDER:-0}" == "1" ]]; then
 else
     echo "=== Building shared toolchain base image ==="
     docker buildx build \
-        --push \
+        "$DOCKER_BUILD_OUTPUT" \
         -f docker/Dockerfile.builder \
         -t "${BUILDER_IMAGE}" \
         .
-    echo "Pushed: $BUILDER_IMAGE"
+    if [[ "$DEPLOY_MODE" == "local" ]]; then
+        echo "Loaded locally: $BUILDER_IMAGE"
+    else
+        echo "Pushed: $BUILDER_IMAGE"
+    fi
 fi
 echo ""
 
@@ -67,6 +86,8 @@ except ImportError:
 REGISTRY = "${REGISTRY}"
 ORG      = "${ORG}"
 BUILDER_IMAGE = "${BUILDER_IMAGE}"
+DEPLOY_MODE = "${DEPLOY_MODE}"
+DOCKER_BUILD_OUTPUT = "${DOCKER_BUILD_OUTPUT}"
 
 with open("variants.yaml") as f:
     config = yaml.safe_load(f)
@@ -98,7 +119,10 @@ for t in targets:
 
     # e.g. sensor-app-arm-cortex-a
     image_name = f"{app.replace('_', '-')}-{arch}"
-    image_tag  = f"{REGISTRY}/{ORG}/{image_name}:latest"
+    if DEPLOY_MODE == "local":
+        image_tag = f"{image_name}:latest"
+    else:
+        image_tag = f"{REGISTRY}/{ORG}/{image_name}:latest"
     dockerfile = f"docker/Dockerfile.{app}"
 
     if not os.path.isfile(dockerfile):
@@ -110,7 +134,7 @@ for t in targets:
 
     cmd = [
         "docker", "buildx", "build",
-        "--push",
+        DOCKER_BUILD_OUTPUT,
         "--build-arg", f"PLATFORM={platform}",
         "--build-arg", f"CMAKE_PRESET={cmake_preset}",
         "-f", dockerfile,
@@ -120,14 +144,20 @@ for t in targets:
     result = subprocess.run(cmd)
     if result.returncode == 0:
         pushed.append(image_tag)
-        print(f"  Pushed: {image_tag}")
+        if DEPLOY_MODE == "local":
+            print(f"  Loaded: {image_tag}")
+        else:
+            print(f"  Pushed: {image_tag}")
     else:
         failed.append(image_tag)
         print(f"  FAILED: {image_tag}")
 
 print("")
 print("=" * 60)
-print(f"Pushed {len(pushed)}, failed {len(failed)}")
+if DEPLOY_MODE == "local":
+    print(f"Loaded {len(pushed)}, failed {len(failed)}")
+else:
+    print(f"Pushed {len(pushed)}, failed {len(failed)}")
 if failed:
     print("Failed images:")
     for img in failed:
@@ -144,7 +174,11 @@ if [[ "${SKIP_K8S:-0}" == "1" ]]; then
 fi
 
 echo "=== Regenerating k8s manifest ==="
-python3 scripts/generate_k8s.py
+if [[ "$DEPLOY_MODE" == "local" ]]; then
+    LOCAL_IMAGES=1 python3 scripts/generate_k8s.py
+else
+    python3 scripts/generate_k8s.py
+fi
 echo "k8s/manifest.yaml updated."
 
 if ! kubectl cluster-info >/dev/null 2>&1; then

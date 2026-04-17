@@ -206,6 +206,12 @@ SKIP_BUILDER=1 ./deploy_all.sh
 
 # Build and push only (no Kubernetes deployment)
 SKIP_K8S=1 ./deploy_all.sh
+
+# Local mode: build/load into local Docker engine (no registry push)
+DEPLOY_MODE=local ./deploy_all.sh
+
+# Local mode + build only (skip Kubernetes apply)
+DEPLOY_MODE=local SKIP_K8S=1 ./deploy_all.sh
 ```
 
 ### Deploy to Kubernetes

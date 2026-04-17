@@ -21,7 +21,8 @@ REPO_ROOT   = os.path.dirname(SCRIPT_DIR)
 VARIANTS_FILE = os.path.join(REPO_ROOT, "variants.yaml")
 OUTPUT_FILE   = os.path.join(REPO_ROOT, "k8s", "manifest.yaml")
 
-REGISTRY  = "ghcr.io/techaccel-upskill"
+REGISTRY  = os.environ.get("K8S_IMAGE_REGISTRY", "ghcr.io/techaccel-upskill")
+LOCAL_IMAGES = os.environ.get("LOCAL_IMAGES", "0") == "1"
 NAMESPACE = "embedded-os"
 
 # Map arch identifier → Kubernetes node label (kubernetes.io/arch)
@@ -63,7 +64,9 @@ def k8s_name(app, arch):
 
 
 def image_name(app, arch):
-    """GHCR image tag for this app+arch combination."""
+    """Container image tag for this app+arch combination."""
+    if LOCAL_IMAGES:
+        return f"{k8s_name(app, arch)}:latest"
     return f"{REGISTRY}/{k8s_name(app, arch)}:latest"
 
 
@@ -102,6 +105,15 @@ def generate_deployment(app, arch, cmake_preset):
     image     = image_name(app, arch)
     k8s_arch  = ARCH_TO_K8S_ARCH.get(arch, arch)
     binary    = f"/app/{app}"
+    pull_secret_block = ""
+    image_pull_policy = "IfNotPresent"
+
+    if not LOCAL_IMAGES:
+        pull_secret_block = """\
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+"""
+        image_pull_policy = "Always"
 
     if app in HTTP_APPS:
         liveness_probe = f"""\
@@ -176,12 +188,10 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: ghcr-pull-secret
-      containers:
+{pull_secret_block}      containers:
         - name: {name}
           image: {image}
-          imagePullPolicy: Always
+          imagePullPolicy: {image_pull_policy}
           env:
             - name: APP_NAME
               value: "{name}"
@@ -203,7 +213,24 @@ spec:
 """
 
 
-STATIC_HEADER = f"""\
+def build_static_header():
+    if LOCAL_IMAGES:
+        prereq_block = """\
+# LOCAL MODE NOTE:
+#   Manifest references local image tags (<app>-<arch>:latest) and does not
+#   include imagePullSecrets. Ensure your cluster can see local Docker images.
+"""
+    else:
+        prereq_block = f"""\
+# PREREQUISITE — create the GHCR pull secret once per cluster:
+#   kubectl create secret docker-registry ghcr-pull-secret \\
+#     --namespace {NAMESPACE} \\
+#     --docker-server=ghcr.io \\
+#     --docker-username=<github-username> \\
+#     --docker-password=<github-pat-with-read:packages>
+"""
+
+    return f"""\
 # ============================================================================
 # k8s/manifest.yaml — GENERATED FILE
 # Source: variants.yaml  |  Generator: scripts/generate_k8s.py
@@ -214,12 +241,8 @@ STATIC_HEADER = f"""\
 # Contains: Namespace, ResourceQuota, NetworkPolicy, and one Service +
 # Deployment per unique (app, arch) cmake variant in variants.yaml.
 #
-# PREREQUISITE — create the GHCR pull secret once per cluster:
-#   kubectl create secret docker-registry ghcr-pull-secret \\
-#     --namespace {NAMESPACE} \\
-#     --docker-server=ghcr.io \\
-#     --docker-username=<github-username> \\
-#     --docker-password=<github-pat-with-read:packages>
+{prereq_block}# Image source:
+#   {'Local Docker image cache' if LOCAL_IMAGES else REGISTRY}
 # ============================================================================
 
 ---
@@ -291,7 +314,7 @@ def main():
 
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
     with open(OUTPUT_FILE, "w") as out:
-        out.write(STATIC_HEADER)
+        out.write(build_static_header())
         for v in cmake_variants:
             app    = v["app"]
             arch   = v["arch"]
