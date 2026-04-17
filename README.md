@@ -153,12 +153,25 @@ CI job, and Kubernetes Deployment is derived from it automatically.
 
 ```bash
 ./build_all.sh
+
+# Remove prior outputs, then rebuild everything
+./build_all.sh --clean
+
+# Force a rebuild even when targets look up to date
+./build_all.sh --force
+
+# Combine both for the most aggressive rebuild path
+./build_all.sh --clean --force
 ```
 
 This script reads `variants.yaml` and dispatches:
 - `cmake --preset <preset>` for cmake variants
 - `make PLATFORM=<gnu-triple> ARCH=<arch>` for make variants
 - `bazel build //... --config=<config>` for bazel variants
+
+Build options:
+- `--clean` removes existing outputs before each variant build.
+- `--force` requests a rebuild from the underlying build tool.
 
 ### Build a Single Application Manually
 

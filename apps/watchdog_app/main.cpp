@@ -33,6 +33,21 @@ static long long uptime_seconds() {
         .count();
 }
 
+static bool write_all(int fd, const std::string& data) {
+    size_t total_written = 0;
+    while (total_written < data.size()) {
+        const ssize_t bytes_written = write(
+            fd,
+            data.data() + total_written,
+            data.size() - total_written);
+        if (bytes_written <= 0) {
+            return false;
+        }
+        total_written += static_cast<size_t>(bytes_written);
+    }
+    return true;
+}
+
 // Heartbeat loop — simulates kicking a hardware watchdog timer
 static void heartbeat_loop() {
     while (running) {
@@ -73,7 +88,12 @@ static void http_server() {
         if (client_fd < 0) continue;
 
         char buf[512] = {};
-        read(client_fd, buf, sizeof(buf) - 1); // consume request (not parsed)
+        const ssize_t bytes_read = read(client_fd, buf, sizeof(buf) - 1);
+        if (bytes_read < 0) {
+            std::cerr << "[watchdog] read() failed while handling request" << std::endl;
+            close(client_fd);
+            continue;
+        }
 
         std::ostringstream body;
         body << R"({"status":"ok")"
@@ -89,7 +109,9 @@ static void http_server() {
              << "\r\n"
              << body_str;
         const std::string resp_str = resp.str();
-        write(client_fd, resp_str.c_str(), resp_str.size());
+        if (!write_all(client_fd, resp_str)) {
+            std::cerr << "[watchdog] write() failed while sending response" << std::endl;
+        }
         close(client_fd);
     }
     close(server_fd);

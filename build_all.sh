@@ -12,6 +12,51 @@
 set -e
 cd "$(dirname "$0")"
 
+usage() {
+    cat <<'EOF'
+Usage: ./build_all.sh [--clean] [--force] [--help]
+
+Options:
+  --clean   Remove existing build outputs before building.
+  --force   Force a rebuild even if outputs appear up to date.
+  --help    Show this help text and exit.
+
+Notes:
+  - For CMake, --clean removes apps/<app>/build/<preset> before configure.
+  - For CMake, --force adds --clean-first to the build step.
+  - For Make, --clean runs make clean and --force runs make -B.
+  - For Bazel, --clean runs bazel clean and --force also falls back to bazel clean
+    because Bazel does not provide a direct make-style force rebuild flag.
+EOF
+}
+
+CLEAN_BUILD=0
+FORCE_BUILD=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --clean)
+            CLEAN_BUILD=1
+            ;;
+        --force)
+            FORCE_BUILD=1
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            echo >&2
+            usage >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+export CLEAN_BUILD FORCE_BUILD
+
 # ── Prerequisites ─────────────────────────────────────────────────────────────
 install_prerequisites() {
     echo "=== Installing prerequisites ==="
@@ -55,9 +100,15 @@ install_prerequisites
 
 # ── Build loop (driven by variants.yaml via Python) ───────────────────────────
 python3 - << 'PYEOF'
-import subprocess, sys, os
+import os
+import shutil
+import subprocess
+import sys
 
 os.chdir(os.path.dirname(os.path.realpath('/workspaces/Embedded_Devops/build_all.sh')))
+
+clean_build = os.environ.get("CLEAN_BUILD") == "1"
+force_build = os.environ.get("FORCE_BUILD") == "1"
 
 try:
     import yaml
@@ -88,18 +139,40 @@ for v in variants:
     try:
         if build_system == "cmake":
             preset = v["cmake_preset"]
+            build_dir = os.path.join(app_dir, "build", preset)
+
+            if clean_build and os.path.isdir(build_dir):
+                print(f"  Cleaning CMake build directory: {build_dir}")
+                shutil.rmtree(build_dir)
+
             subprocess.run(["cmake", "--preset", preset], cwd=app_dir, check=True)
-            subprocess.run(["cmake", "--build", "--preset", preset], cwd=app_dir, check=True)
+
+            build_cmd = ["cmake", "--build", "--preset", preset]
+            if force_build:
+                build_cmd.append("--clean-first")
+            subprocess.run(build_cmd, cwd=app_dir, check=True)
 
         elif build_system == "make":
             make_arch = v.get("make_arch", arch)
-            subprocess.run(
-                ["make", f"PLATFORM={platform}", f"ARCH={make_arch}"],
-                cwd=app_dir, check=True
-            )
+            make_vars = [f"PLATFORM={platform}", f"ARCH={make_arch}"]
+
+            if clean_build:
+                subprocess.run(
+                    ["make", *make_vars, "clean"],
+                    cwd=app_dir, check=True
+                )
+
+            make_cmd = ["make"]
+            if force_build:
+                make_cmd.append("-B")
+            make_cmd.extend(make_vars)
+            subprocess.run(make_cmd, cwd=app_dir, check=True)
 
         elif build_system == "bazel":
             bazel_config = v.get("bazel_config", "x86_64")
+            if clean_build or force_build:
+                subprocess.run(["bazel", "clean"], cwd=app_dir, check=True)
+
             subprocess.run(
                 ["bazel", "build", "//...", f"--config={bazel_config}"],
                 cwd=app_dir, check=True
